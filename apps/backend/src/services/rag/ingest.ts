@@ -30,7 +30,7 @@ export async function ingestRag(
 
   await onProgress?.("rag_diff_done", 65, `${changedChunks.length} of ${allChunks.length} chunks changed`);
 
-  // Step 3: Embed changed chunks via OpenAI
+  // Step 3: Embed changed chunks via Gemini
   await onProgress?.("embedding_started", 66, `Embedding ${changedChunks.length} chunks with Gemini...`);
   let withVectors;
   try {
@@ -38,7 +38,7 @@ export async function ingestRag(
   }
   catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`OpenAI embedding failed: ${msg}`);
+    throw new Error(`Gemini embedding failed: ${msg}`);
   }
   await onProgress?.("embedding_done", 80, `Embedded ${withVectors.length} chunks`);
 

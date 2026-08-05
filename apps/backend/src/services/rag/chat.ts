@@ -27,16 +27,6 @@ function getGenAI(): GoogleGenerativeAI {
   return _genAI;
 }
 
-// ── OpenAI (commented out — switch back by uncommenting and commenting Gemini) ──
-// import OpenAI from "openai";
-// let _openai: OpenAI | null = null;
-// function getOpenAI(): OpenAI {
-//   if (!_openai) {
-//     _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-//   }
-//   return _openai;
-// }
-
 export type ChatResult = {
   answer: string;
   sources: string[];
@@ -98,21 +88,6 @@ export async function chat(
     answer: result.response.text() ?? "No answer generated.",
     sources,
   };
-
-  // ── OpenAI chat (uncomment to switch back) ──
-  // const completion = await getOpenAI().chat.completions.create({
-  //   model: "gpt-4o-mini",
-  //   messages: [
-  //     { role: "system", content: buildSystemPrompt(username, context) },
-  //     { role: "user", content: question },
-  //   ],
-  //   temperature: 0.3,
-  //   max_tokens: 512,
-  // });
-  // return {
-  //   answer: completion.choices[0].message.content ?? "No answer generated.",
-  //   sources,
-  // };
 }
 
 export async function* chatStream(
@@ -142,21 +117,4 @@ export async function* chatStream(
   }
 
   yield { type: "done", content: "" };
-
-  // ── OpenAI streaming (uncomment to switch back) ──
-  // const stream = await getOpenAI().chat.completions.create({
-  //   model: "gpt-4o-mini",
-  //   messages: [
-  //     { role: "system", content: buildSystemPrompt(username, context) },
-  //     { role: "user", content: question },
-  //   ],
-  //   temperature: 0.3,
-  //   max_tokens: 512,
-  //   stream: true,
-  // });
-  // for await (const chunk of stream) {
-  //   const token = chunk.choices[0]?.delta?.content;
-  //   if (token) yield { type: "token", content: token };
-  // }
-  // yield { type: "done", content: "" };
 }
