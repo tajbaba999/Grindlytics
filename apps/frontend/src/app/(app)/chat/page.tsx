@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import { chat } from "@/lib/api/codingprofile";
+import type { SourceRef } from "@/lib/api/types";
 
-type Message = { role: "user" | "assistant"; text: string; sources?: string[]; error?: boolean };
+type Message = { role: "user" | "assistant"; text: string; sources?: SourceRef[]; error?: boolean };
 
 const STORAGE_KEY = "leetpulse:chat:messages";
 
@@ -62,7 +63,7 @@ export default function ChatPage() {
     return () => { if (typingRef.current) clearInterval(typingRef.current); };
   }, []);
 
-  function typewriterAppend(fullText: string, sources: string[], msgIndex: number) {
+  function typewriterAppend(fullText: string, sources: SourceRef[], msgIndex: number) {
     let i = 0;
     const chunkSize = 3;
     const interval = 15;
@@ -338,9 +339,9 @@ function MessageRow({ msg }: { msg: Message }) {
           {isUser ? msg.text : <MarkdownContent text={msg.text} />}
         </div>
         {msg.sources && msg.sources.length > 0 && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", paddingLeft: 4 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", paddingLeft: 4, marginTop: 6 }}>
             {msg.sources.map((src) => (
-              <span key={src} className="font-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", background: "var(--surface-2)", padding: "3px 8px", borderRadius: 6 }}>{src}</span>
+              <span key={src.chunkId} className="font-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", background: "var(--surface-2)", padding: "3px 8px", borderRadius: 6 }} title={src.chunkId}>{src.label}</span>
             ))}
           </div>
         )}

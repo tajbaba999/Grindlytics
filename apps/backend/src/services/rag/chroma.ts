@@ -56,7 +56,7 @@ export async function upsertChunks(userId: string, chunks: ChunkWithVector[]): P
     await col.upsert({
       ids: batch.map(c => `${userId}::${c.id}`),
       embeddings: batch.map(c => c.vector),
-      metadatas: batch.map(c => ({ userId, type: c.type, chunkId: c.id })),
+      metadatas: batch.map(c => ({ userId, type: c.type, chunkId: c.id, label: c.label })),
       documents: batch.map(c => c.text),
     });
   }
@@ -66,7 +66,7 @@ export async function queryChunks(
   userId: string,
   vector: number[],
   topK: number = 4,
-): Promise<Array<{ id: string; text: string }>> {
+): Promise<Array<{ id: string; text: string; label: string }>> {
   const col = await getCollection();
 
   const result = await col.query({
@@ -77,9 +77,11 @@ export async function queryChunks(
 
   const ids: string[] = result.ids[0] ?? [];
   const docs: (string | null)[] = result.documents[0] ?? [];
+  const metadatas = (result.metadatas?.[0] ?? []) as Array<{ label?: string } | null>;
 
   return ids.map((fullId, i) => ({
     id: fullId.split("::")[1] ?? fullId,
     text: docs[i] ?? "",
+    label: metadatas[i]?.label ?? "Source",
   }));
 }

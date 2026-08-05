@@ -172,9 +172,14 @@ export type HistoryResponse = {
   total: number;
 };
 
+export type SourceRef = {
+  chunkId: string;
+  label: string;
+};
+
 export type ChatResponse = {
   answer: string;
-  sources: string[];
+  sources: SourceRef[];
 };
 
 // SSE progress event shape emitted by initial-sync / sync.

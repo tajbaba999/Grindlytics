@@ -27,26 +27,31 @@ function getGenAI(): GoogleGenerativeAI {
   return _genAI;
 }
 
+export type SourceRef = {
+  chunkId: string;
+  label: string;
+};
+
 export type ChatResult = {
   answer: string;
-  sources: string[];
+  sources: SourceRef[];
 };
 
 export type ChatChunk = {
   type: "sources" | "token" | "done";
   content: string;
-  sources?: string[];
+  sources?: SourceRef[];
 };
 
 async function buildContext(
   userId: string,
   username: string,
   question: string,
-): Promise<{ context: string; sources: string[] }> {
-  const [questionChunk] = await retry(() => embedChunks([{ id: "query", text: question, type: "summary" }]));
+): Promise<{ context: string; sources: SourceRef[] }> {
+  const [questionChunk] = await retry(() => embedChunks([{ id: "query", text: question, type: "summary", label: "Query" }]));
   const matches = await retry(() => queryChunks(userId, questionChunk.vector, 8));
   const context = matches.map(m => m.text).join("\n\n---\n\n");
-  const sources = matches.map(m => m.id);
+  const sources = matches.map(m => ({ chunkId: m.id, label: m.label }));
   return { context, sources };
 }
 

@@ -5,6 +5,7 @@ import type {
   HistoryResponse,
   LeetCodeProgressResponse,
   QuestionsResponse,
+  SourceRef,
   SyncEvent,
   UserProfile,
 } from "./types";
@@ -53,7 +54,7 @@ export function chat(question: string): Promise<ChatResponse> {
 export type ChatStreamChunk = {
   type: "sources" | "token" | "done" | "error";
   content: string;
-  sources?: string[];
+  sources?: SourceRef[];
 };
 
 export async function chatStream(
