@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-import { queryChunks } from "./chroma.js";
+import { queryChunks, type ChunkQueryFilter } from "./chroma.js";
 import { embedChunks } from "./embeddings.js";
 
 async function retry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
@@ -47,9 +47,10 @@ async function buildContext(
   userId: string,
   username: string,
   question: string,
+  filter?: ChunkQueryFilter,
 ): Promise<{ context: string; sources: SourceRef[] }> {
-  const [questionChunk] = await retry(() => embedChunks([{ id: "query", text: question, type: "summary", label: "Query" }]));
-  const matches = await retry(() => queryChunks(userId, questionChunk.vector, 8));
+  const [questionChunk] = await retry(() => embedChunks([{ id: "query", text: question, type: "summary", label: "Query", metadata: {} }]));
+  const matches = await retry(() => queryChunks(userId, questionChunk.vector, 8, filter));
   const context = matches.map(m => m.text).join("\n\n---\n\n");
   const sources = matches.map(m => ({ chunkId: m.id, label: m.label }));
   return { context, sources };
@@ -76,8 +77,9 @@ export async function chat(
   userId: string,
   username: string,
   question: string,
+  filter?: ChunkQueryFilter,
 ): Promise<ChatResult> {
-  const { context, sources } = await buildContext(userId, username, question);
+  const { context, sources } = await buildContext(userId, username, question, filter);
 
   const result = await retry(async () => {
     const model = getGenAI().getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -99,8 +101,9 @@ export async function* chatStream(
   userId: string,
   username: string,
   question: string,
+  filter?: ChunkQueryFilter,
 ): AsyncGenerator<ChatChunk> {
-  const { context, sources } = await buildContext(userId, username, question);
+  const { context, sources } = await buildContext(userId, username, question, filter);
 
   yield { type: "sources", content: "", sources };
 

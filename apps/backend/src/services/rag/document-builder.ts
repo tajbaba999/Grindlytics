@@ -1,11 +1,18 @@
 import type { RawProblem } from "../../queues/process.queue.js";
 import type { LeetCodeSyncResult } from "../../types/coding-profiles.js";
 
+export type ChunkMetadata = {
+  difficulty?: string;
+  tags?: string[];
+  lastSubmittedAt?: string;
+};
+
 export type Chunk = {
   id: string;
   text: string;
   type: "summary" | "problem";
   label: string;
+  metadata: ChunkMetadata;
 };
 
 export function buildChunks(
@@ -24,6 +31,7 @@ export function buildChunks(
     id: "overall-summary",
     type: "summary",
     label: "Overall Profile Summary",
+    metadata: {},
     text: [
       `LeetCode profile summary for ${username}:`,
       `Total solved: ${profile.totalSolved}/${profile.totalQuestions} (${totalPct}%)`,
@@ -50,6 +58,7 @@ export function buildChunks(
       id: `skill-${level}`,
       type: "summary",
       label: `${level.charAt(0).toUpperCase() + level.slice(1)} Skill Topics`,
+      metadata: {},
       text: [`${level.charAt(0).toUpperCase() + level.slice(1)} skill topics for ${username}:`, ...lines].join("\n"),
     });
   }
@@ -68,6 +77,7 @@ export function buildChunks(
     id: "weakness-analysis",
     type: "summary",
     label: "Weakness Analysis",
+    metadata: {},
     text: [
       `Weakness analysis for ${username}:`,
       "",
@@ -92,6 +102,7 @@ export function buildChunks(
     id: "topic-complete-analysis",
     type: "summary",
     label: "Complete Topic Analysis",
+    metadata: {},
     text: [
       `Complete topic-by-topic analysis for ${username}:`,
       `Total topics with problems: ${allTags.length} out of ${skillStats.advanced.length + skillStats.intermediate.length + skillStats.fundamental.length}`,
@@ -114,6 +125,7 @@ export function buildChunks(
     id: "language-stats",
     type: "summary",
     label: "Programming Languages",
+    metadata: {},
     text: [
       `Programming languages used by ${username}:`,
       ...sortedLangs.map(l => `- ${l.languageName}: ${l.problemsSolved} problems`),
@@ -126,6 +138,7 @@ export function buildChunks(
     id: "contest-summary",
     type: "summary",
     label: "Contest Summary",
+    metadata: {},
     text: [
       `Contest statistics for ${username}:`,
       `Rating: ${contest.info.rating.toFixed(0)}`,
@@ -144,6 +157,7 @@ export function buildChunks(
     id: "contest-history",
     type: "summary",
     label: "Contest History",
+    metadata: {},
     text: [
       `Contest history for ${username} (${contest.history.length} contests):`,
       ...historyLines,
@@ -159,6 +173,7 @@ export function buildChunks(
     id: "question-progress",
     type: "summary",
     label: "Question Progress",
+    metadata: {},
     text: [
       `Question progress for ${username}:`,
       `Accepted — Easy: ${acc.find(x => x.difficulty === "EASY")?.count ?? 0} | Medium: ${acc.find(x => x.difficulty === "MEDIUM")?.count ?? 0} | Hard: ${acc.find(x => x.difficulty === "HARD")?.count ?? 0}`,
@@ -177,6 +192,7 @@ export function buildChunks(
     id: "session-progress",
     type: "summary",
     label: "Submission Statistics",
+    metadata: {},
     text: [
       `Submission statistics for ${username}:`,
       `Total questions on LeetCode — All: ${allQ.find(x => x.difficulty === "All")?.count ?? 0} | Easy: ${allQ.find(x => x.difficulty === "Easy")?.count ?? 0} | Medium: ${allQ.find(x => x.difficulty === "Medium")?.count ?? 0} | Hard: ${allQ.find(x => x.difficulty === "Hard")?.count ?? 0}`,
@@ -207,6 +223,7 @@ export function buildChunks(
     id: "calendar-activity",
     type: "summary",
     label: "Activity Calendar",
+    metadata: {},
     text: [
       `Activity calendar for ${username}:`,
       `Current streak: ${calendar.streak} days`,
@@ -229,6 +246,7 @@ export function buildChunks(
       id: "recent-submissions",
       type: "summary",
       label: "Recent Submissions",
+      metadata: {},
       text: [
         `Recent submissions for ${username} (last ${profile.recentSubmissions.length}):`,
         ...recentLines,
@@ -245,6 +263,11 @@ export function buildChunks(
       id: `problem-${p.titleSlug}`,
       type: "problem",
       label: `Problem: ${p.title}`,
+      metadata: {
+        difficulty: p.difficulty,
+        tags: Array.isArray(p.topicTags) ? p.topicTags.map((t: { name: string }) => t.name) : [],
+        lastSubmittedAt: p.lastSubmittedAt,
+      },
       text: [
         `Problem: ${p.title}`,
         `Difficulty: ${p.difficulty}`,

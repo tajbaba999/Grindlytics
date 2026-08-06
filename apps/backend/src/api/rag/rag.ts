@@ -8,6 +8,7 @@ import type { LeetCodeSyncResult } from "../../types/coding-profiles.js";
 
 import prisma from "@leetplus/db";
 import { chat, chatStream } from "../../services/rag/chat.js";
+import type { ChunkQueryFilter } from "../../services/rag/chroma.js";
 import { ingestRag } from "../../services/rag/ingest.js";
 
 const router = Express.Router();
@@ -55,13 +56,13 @@ router.post("/ingest", async (req, res) => {
 });
 
 // POST /api/v1/rag/chat
-// Body: { question: string }
+// Body: { question: string, filter?: { type?, difficulty?, tag? } }
 router.post("/chat", async (req, res) => {
   const user = req.user;
   if (!user)
     return res.status(401).json({ message: "Unauthorized" });
 
-  const { question } = req.body as { question?: string };
+  const { question, filter } = req.body as { question?: string; filter?: ChunkQueryFilter };
   if (!question?.trim()) {
     return res.status(400).json({ message: "question is required" });
   }
@@ -72,7 +73,7 @@ router.post("/chat", async (req, res) => {
       return res.status(404).json({ message: "LeetCode profile not linked" });
     }
 
-    const result = await chat(user.userId, codingProfile.leetcode, question);
+    const result = await chat(user.userId, codingProfile.leetcode, question, filter);
     res.status(200).json(result);
   }
   catch (ex) {
@@ -83,13 +84,13 @@ router.post("/chat", async (req, res) => {
 });
 
 // POST /api/v1/rag/chat/stream
-// Body: { question: string } — returns SSE stream
+// Body: { question: string, filter?: { type?, difficulty?, tag? } } — returns SSE stream
 router.post("/chat/stream", async (req, res) => {
   const user = req.user;
   if (!user)
     return res.status(401).json({ message: "Unauthorized" });
 
-  const { question } = req.body as { question?: string };
+  const { question, filter } = req.body as { question?: string; filter?: ChunkQueryFilter };
   if (!question?.trim()) {
     return res.status(400).json({ message: "question is required" });
   }
@@ -106,7 +107,7 @@ router.post("/chat/stream", async (req, res) => {
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
-    const stream = chatStream(user.userId, codingProfile.leetcode, question);
+    const stream = chatStream(user.userId, codingProfile.leetcode, question, filter);
     for await (const chunk of stream) {
       res.write(`data: ${JSON.stringify(chunk)}\n\n`);
     }
