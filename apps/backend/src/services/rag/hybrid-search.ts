@@ -63,20 +63,43 @@ export function reciprocalRankFusion(
   return fused;
 }
 
-export type HybridSearchOutput = {
-  results: HybridResult[];
-  topLogit: number | null;
-};
+// Fuses multiple ranked result lists (from query variants + HyDE) into a single
+// ranked list using reciprocal rank fusion.
+function fuseRankedLists(lists: Array<Array<{ id: string; text: string; label: string }>>): Map<string, HybridResult> {
+  const fused = new Map<string, HybridResult>();
 
-export async function hybridSearch(
+  lists.forEach((docs) => {
+    docs.forEach((doc, i) => {
+      const rank = i + 1;
+      const existing = fused.get(doc.id);
+      if (existing) {
+        existing.rrfScore += 1 / (RRF_K + rank);
+      }
+      else {
+        fused.set(doc.id, {
+          id: doc.id,
+          text: doc.text,
+          label: doc.label,
+          rrfScore: 1 / (RRF_K + rank),
+          denseRank: null,
+          sparseRank: null,
+        });
+      }
+    });
+  });
+
+  return fused;
+}
+
+type RetrievalResult = Array<{ id: string; text: string; label: string }>;
+
+async function retrieveForQuery(
   userId: string,
   question: string,
-  topK: number = 10,
+  denseK: number,
+  sparseK: number,
   filter?: ChunkQueryFilter,
-): Promise<HybridSearchOutput> {
-  const denseK = Math.max(topK * 2, 8);
-  const sparseK = Math.max(topK * 2, 8);
-
+): Promise<RetrievalResult> {
   const [questionChunk] = await embedChunks([{ id: "query", text: question, type: "summary", label: "Query", metadata: {} }]);
 
   const [denseMatches, index] = await Promise.all([
@@ -86,10 +109,50 @@ export async function hybridSearch(
   const sparseMatches = searchBm25(index, question, sparseK, filter);
 
   const fused = reciprocalRankFusion(denseMatches, sparseMatches);
+  return [...fused.values()].sort((a, b) => b.rrfScore - a.rrfScore);
+}
 
+export type HybridSearchOutput = {
+  results: HybridResult[];
+  topLogit: number | null;
+};
+
+// Retrieves against multiple query variants (multi-query expansion) plus an
+// optional HyDE hypothetical document, fuses everything with RRF, and reranks
+// the merged candidates against the original question.
+export async function multiQuerySearch(
+  userId: string,
+  queries: string[],
+  topK: number = 10,
+  filter?: ChunkQueryFilter,
+  hyde?: string | null,
+): Promise<HybridSearchOutput> {
+  const denseK = Math.max(topK * 2, 8);
+  const sparseK = Math.max(topK * 2, 8);
+
+  const lists = await Promise.all(queries.map(q => retrieveForQuery(userId, q, denseK, sparseK, filter)));
+
+  if (hyde) {
+    const [hydeChunk] = await embedChunks([{ id: "hyde", text: hyde, type: "summary", label: "Query", metadata: {} }]);
+    lists.push(await queryChunks(userId, hydeChunk.vector, denseK, filter));
+  }
+
+  const fused = fuseRankedLists(lists);
   const candidates = [...fused.values()]
     .sort((a, b) => b.rrfScore - a.rrfScore)
     .slice(0, Math.max(topK * 2, 8));
 
-  return rerank(question, candidates, topK);
+  // Rerank against the user's actual question, not the expansion variants.
+  return rerank(queries[0], candidates, topK);
+}
+
+// Single-query hybrid search (dense + BM25, RRF, rerank) — kept for callers
+// that don't need query expansion.
+export async function hybridSearch(
+  userId: string,
+  question: string,
+  topK: number = 10,
+  filter?: ChunkQueryFilter,
+): Promise<HybridSearchOutput> {
+  return multiQuerySearch(userId, [question], topK, filter, null);
 }

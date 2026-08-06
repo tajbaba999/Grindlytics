@@ -1,12 +1,13 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 import type { ChunkQueryFilter } from "./chroma.js";
 import type { ConfidenceResult } from "./confidence.js";
 
+import { env } from "../../env.js";
 import { confidenceFromLogit } from "./confidence.js";
+import { getGenAI } from "./genai.js";
 import { buildGroundingContext, verifyAgainstSources } from "./grounding.js";
-import { hybridSearch } from "./hybrid-search.js";
+import { multiQuerySearch } from "./hybrid-search.js";
 import type { GroundingResult } from "./grounding.js";
+import { expandQuery } from "./query-expansion.js";
 
 async function retry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   try {
@@ -21,15 +22,6 @@ async function retry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
     }
     throw err;
   }
-}
-
-let _genAI: GoogleGenerativeAI | null = null;
-function getGenAI(): GoogleGenerativeAI {
-  if (!_genAI) {
-    // eslint-disable-next-line node/no-process-env
-    _genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
-  }
-  return _genAI;
 }
 
 export type SourceRef = {
@@ -57,7 +49,8 @@ async function buildContext(
   question: string,
   filter?: ChunkQueryFilter,
 ): Promise<{ context: string; sources: SourceRef[]; confidence: ConfidenceResult }> {
-  const { results, topLogit } = await retry(() => hybridSearch(userId, question, 10, filter));
+  const { queries, hyde } = await expandQuery(question, username);
+  const { results, topLogit } = await retry(() => multiQuerySearch(userId, queries, 10, filter, hyde));
   const context = buildGroundingContext(results);
   const sources = results.map(m => ({ chunkId: m.id, label: m.label }));
   return { context, sources, confidence: confidenceFromLogit(topLogit) };
@@ -104,7 +97,7 @@ export async function chat(
   const { context, sources, confidence } = await buildContext(userId, username, question, filter);
 
   const result = await retry(async () => {
-    const model = getGenAI().getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = getGenAI().getGenerativeModel({ model: env.GEMINI_MODEL });
     return model.generateContent({
       contents: [
         { role: "user", parts: [{ text: `${buildSystemPrompt(username, context, confidence)}\n\nUser question: ${question}` }] },
@@ -135,7 +128,7 @@ export async function* chatStream(
   yield { type: "sources", content: "", sources, confidence };
 
   const stream = await retry(async () => {
-    const model = getGenAI().getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = getGenAI().getGenerativeModel({ model: env.GEMINI_MODEL });
     return model.generateContentStream({
       contents: [
         { role: "user", parts: [{ text: `${buildSystemPrompt(username, context, confidence)}\n\nUser question: ${question}` }] },

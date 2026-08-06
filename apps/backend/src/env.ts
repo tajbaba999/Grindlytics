@@ -9,6 +9,7 @@ const envSchema = z.object({
   LEETCODE_SESSION: z.string().optional(),
   LEETCODE_CSRF: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
   CHROMA_URL: z.string().default("http://localhost:8000"),
   CHROMA_HOST: z.string().optional(),
   CHROMA_API_KEY: z.string().optional(),
@@ -19,6 +20,9 @@ const envSchema = z.object({
   RERANK_TOP_K: z.coerce.number().default(5),
   CONFIDENCE_LOW: z.coerce.number().default(0.5),
   CONFIDENCE_HIGH: z.coerce.number().default(0.8),
+  QUERY_EXPANSION_ENABLED: z.coerce.boolean().default(true),
+  QUERY_EXPANSION_VARIANTS: z.coerce.number().default(2),
+  HYDE_ENABLED: z.coerce.boolean().default(true),
 });
 
 try {
