@@ -3,6 +3,7 @@ import type { ChunkQueryFilter } from "./chroma.js";
 import { queryChunks } from "./chroma.js";
 import { embedChunks } from "./embeddings.js";
 import { getOrBuildIndex, searchBm25 } from "./bm25.js";
+import { rerank } from "./reranker.js";
 
 export type HybridResult = {
   id: string;
@@ -81,7 +82,9 @@ export async function hybridSearch(
 
   const fused = reciprocalRankFusion(denseMatches, sparseMatches);
 
-  return [...fused.values()]
+  const candidates = [...fused.values()]
     .sort((a, b) => b.rrfScore - a.rrfScore)
-    .slice(0, topK);
+    .slice(0, Math.max(topK * 2, 8));
+
+  return rerank(question, candidates, topK);
 }

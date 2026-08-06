@@ -14,6 +14,9 @@ const envSchema = z.object({
   CHROMA_API_KEY: z.string().optional(),
   CHROMA_TENANT: z.string().optional(),
   CHROMA_DATABASE: z.string().optional(),
+  RERANK_ENABLED: z.coerce.boolean().default(true),
+  RERANK_MODEL: z.string().default("cross-encoder/ms-marco-MiniLM-L-6-v2"),
+  RERANK_TOP_K: z.coerce.number().default(5),
 });
 
 try {
