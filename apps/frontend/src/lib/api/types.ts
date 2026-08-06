@@ -185,10 +185,20 @@ export type GroundingResult = {
   fullyGrounded: boolean;
 };
 
+export type ConfidenceLevel = "high" | "medium" | "low" | "unavailable";
+
+export type ConfidenceResult = {
+  score: number | null;
+  level: ConfidenceLevel;
+  lowThreshold: number;
+  highThreshold: number;
+};
+
 export type ChatResponse = {
   answer: string;
   sources: SourceRef[];
   grounding?: GroundingResult;
+  confidence?: ConfidenceResult;
 };
 
 // SSE progress event shape emitted by initial-sync / sync.

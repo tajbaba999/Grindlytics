@@ -17,6 +17,8 @@ const envSchema = z.object({
   RERANK_ENABLED: z.coerce.boolean().default(true),
   RERANK_MODEL: z.string().default("cross-encoder/ms-marco-MiniLM-L-6-v2"),
   RERANK_TOP_K: z.coerce.number().default(5),
+  CONFIDENCE_LOW: z.coerce.number().default(0.5),
+  CONFIDENCE_HIGH: z.coerce.number().default(0.8),
 });
 
 try {

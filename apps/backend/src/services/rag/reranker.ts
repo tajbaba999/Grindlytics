@@ -24,13 +24,18 @@ async function getReranker(): Promise<Reranker> {
   return _loadPromise;
 }
 
+export type RerankOutput = {
+  results: HybridResult[];
+  topLogit: number | null;
+};
+
 export async function rerank(
   query: string,
   candidates: HybridResult[],
   topK: number,
-): Promise<HybridResult[]> {
+): Promise<RerankOutput> {
   if (!appEnv.RERANK_ENABLED || candidates.length <= 1)
-    return candidates;
+    return { results: candidates.slice(0, topK), topLogit: null };
 
   try {
     const { tokenizer, model } = await getReranker();
@@ -46,13 +51,15 @@ export async function rerank(
     const ranked = candidates
       .map((candidate, i) => ({ candidate, score: scores[i] ?? -Infinity }))
       .sort((a, b) => b.score - a.score)
-      .slice(0, topK)
-      .map(x => x.candidate);
+      .slice(0, topK);
 
-    return ranked;
+    return {
+      results: ranked.map(x => x.candidate),
+      topLogit: ranked[0]?.score ?? null,
+    };
   }
   catch (err) {
     // Reranking is best-effort — fall back to hybrid order on failure
-    return candidates.slice(0, topK);
+    return { results: candidates.slice(0, topK), topLogit: null };
   }
 }

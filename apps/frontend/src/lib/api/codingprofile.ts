@@ -2,6 +2,7 @@ import type {
   ActivityResponse,
   ChatResponse,
   CodingProfileResponse,
+  ConfidenceResult,
   HistoryResponse,
   LeetCodeProgressResponse,
   QuestionsResponse,
@@ -55,6 +56,7 @@ export type ChatStreamChunk = {
   type: "sources" | "token" | "done" | "error";
   content: string;
   sources?: SourceRef[];
+  confidence?: ConfidenceResult;
 };
 
 export async function chatStream(

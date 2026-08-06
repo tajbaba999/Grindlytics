@@ -1,7 +1,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 import type { ChunkQueryFilter } from "./chroma.js";
+import type { ConfidenceResult } from "./confidence.js";
 
+import { confidenceFromLogit } from "./confidence.js";
 import { buildGroundingContext, verifyAgainstSources } from "./grounding.js";
 import { hybridSearch } from "./hybrid-search.js";
 import type { GroundingResult } from "./grounding.js";
@@ -39,12 +41,14 @@ export type ChatResult = {
   answer: string;
   sources: SourceRef[];
   grounding: GroundingResult;
+  confidence: ConfidenceResult;
 };
 
 export type ChatChunk = {
   type: "sources" | "token" | "done";
   content: string;
   sources?: SourceRef[];
+  confidence?: ConfidenceResult;
 };
 
 async function buildContext(
@@ -52,15 +56,29 @@ async function buildContext(
   username: string,
   question: string,
   filter?: ChunkQueryFilter,
-): Promise<{ context: string; sources: SourceRef[] }> {
-  const matches = await retry(() => hybridSearch(userId, question, 10, filter));
-  const context = buildGroundingContext(matches);
-  const sources = matches.map(m => ({ chunkId: m.id, label: m.label }));
-  return { context, sources };
+): Promise<{ context: string; sources: SourceRef[]; confidence: ConfidenceResult }> {
+  const { results, topLogit } = await retry(() => hybridSearch(userId, question, 10, filter));
+  const context = buildGroundingContext(results);
+  const sources = results.map(m => ({ chunkId: m.id, label: m.label }));
+  return { context, sources, confidence: confidenceFromLogit(topLogit) };
 }
 
-function buildSystemPrompt(username: string, context: string): string {
-  return [
+function buildConfidenceNote(level: ConfidenceResult["level"]): string {
+  switch (level) {
+    case "high":
+      return "";
+    case "medium":
+      return "- Note: the retrieved data is only moderately relevant. Avoid overstating precision — flag anything you are unsure about.";
+    case "low":
+      return "- WARNING: the retrieved data is low-confidence. Be cautious, clearly state when the data is insufficient, and do not invent numbers.";
+    case "unavailable":
+      return "- Note: retrieval confidence could not be computed. If you are unsure, say so explicitly.";
+  }
+}
+
+function buildSystemPrompt(username: string, context: string, confidence?: ConfidenceResult): string {
+  const note = confidence ? buildConfidenceNote(confidence.level) : "";
+  const prompt = [
     `You are a LeetCode performance coach for ${username}.`,
     "Answer questions based ONLY on the profile data provided below.",
     "Rules:",
@@ -71,10 +89,10 @@ function buildSystemPrompt(username: string, context: string): string {
     "- If the data is insufficient to answer, say so — never invent numbers.",
     "- Do NOT truncate your answer. Give the full analysis even if it is long.",
     "- CITATION REQUIREMENT: After every number or claim drawn from the data, append [SOURCE: chunk-id] using one of the source IDs marked in the data below. Every factual statement MUST be grounded in a source.",
-    "",
-    "Profile data:",
-    context,
-  ].join("\n");
+  ];
+  if (note) prompt.push(note);
+  prompt.push("", "Profile data:", context);
+  return prompt.join("\n");
 }
 
 export async function chat(
@@ -83,13 +101,13 @@ export async function chat(
   question: string,
   filter?: ChunkQueryFilter,
 ): Promise<ChatResult> {
-  const { context, sources } = await buildContext(userId, username, question, filter);
+  const { context, sources, confidence } = await buildContext(userId, username, question, filter);
 
   const result = await retry(async () => {
     const model = getGenAI().getGenerativeModel({ model: "gemini-2.5-flash" });
     return model.generateContent({
       contents: [
-        { role: "user", parts: [{ text: `${buildSystemPrompt(username, context)}\n\nUser question: ${question}` }] },
+        { role: "user", parts: [{ text: `${buildSystemPrompt(username, context, confidence)}\n\nUser question: ${question}` }] },
       ],
       generationConfig: { temperature: 0.3, maxOutputTokens: 4096 },
     });
@@ -102,6 +120,7 @@ export async function chat(
     answer: grounding.cleanAnswer,
     sources,
     grounding,
+    confidence,
   };
 }
 
@@ -111,15 +130,15 @@ export async function* chatStream(
   question: string,
   filter?: ChunkQueryFilter,
 ): AsyncGenerator<ChatChunk> {
-  const { context, sources } = await buildContext(userId, username, question, filter);
+  const { context, sources, confidence } = await buildContext(userId, username, question, filter);
 
-  yield { type: "sources", content: "", sources };
+  yield { type: "sources", content: "", sources, confidence };
 
   const stream = await retry(async () => {
     const model = getGenAI().getGenerativeModel({ model: "gemini-2.5-flash" });
     return model.generateContentStream({
       contents: [
-        { role: "user", parts: [{ text: `${buildSystemPrompt(username, context)}\n\nUser question: ${question}` }] },
+        { role: "user", parts: [{ text: `${buildSystemPrompt(username, context, confidence)}\n\nUser question: ${question}` }] },
       ],
       generationConfig: { temperature: 0.3, maxOutputTokens: 4096 },
     });

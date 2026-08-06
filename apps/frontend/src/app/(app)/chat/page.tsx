@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import { chat } from "@/lib/api/codingprofile";
-import type { SourceRef } from "@/lib/api/types";
+import type { ConfidenceResult, SourceRef } from "@/lib/api/types";
 
-type Message = { role: "user" | "assistant"; text: string; sources?: SourceRef[]; error?: boolean };
+type Message = { role: "user" | "assistant"; text: string; sources?: SourceRef[]; confidence?: ConfidenceResult; error?: boolean };
 
 const STORAGE_KEY = "leetpulse:chat:messages";
 
@@ -63,7 +63,7 @@ export default function ChatPage() {
     return () => { if (typingRef.current) clearInterval(typingRef.current); };
   }, []);
 
-  function typewriterAppend(fullText: string, sources: SourceRef[], msgIndex: number) {
+  function typewriterAppend(fullText: string, sources: SourceRef[], confidence: ConfidenceResult | undefined, msgIndex: number) {
     let i = 0;
     const chunkSize = 3;
     const interval = 15;
@@ -71,7 +71,12 @@ export default function ChatPage() {
       i = Math.min(i + chunkSize, fullText.length);
       setMessages((m) => {
         const updated = [...m];
-        updated[msgIndex] = { ...updated[msgIndex], text: fullText.slice(0, i), sources: i === fullText.length ? sources : updated[msgIndex].sources };
+        updated[msgIndex] = {
+          ...updated[msgIndex],
+          text: fullText.slice(0, i),
+          sources: i === fullText.length ? sources : updated[msgIndex].sources,
+          confidence: i === fullText.length ? confidence : updated[msgIndex].confidence,
+        };
         return updated;
       });
       if (i >= fullText.length && typingRef.current) {
@@ -94,7 +99,7 @@ export default function ChatPage() {
 
     try {
       const res = await chat(q);
-      typewriterAppend(res.answer, res.sources, msgIndex);
+      typewriterAppend(res.answer, res.sources, res.confidence, msgIndex);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Chat failed";
       setMessages((m) => {
@@ -345,6 +350,24 @@ function MarkdownContent({ text, labelMap }: { text: string; labelMap: Map<strin
   return <>{blocks}</>;
 }
 
+function ConfidenceBadge({ confidence }: { confidence: ConfidenceResult }) {
+  const styles: Record<ConfidenceResult["level"], { label: string; color: string; bg: string }> = {
+    high: { label: "High confidence", color: "#2e9e5b", bg: "rgba(46,158,91,0.12)" },
+    medium: { label: "Medium confidence", color: "#b7791f", bg: "rgba(183,121,31,0.12)" },
+    low: { label: "Low confidence", color: "#c0392b", bg: "rgba(192,57,43,0.12)" },
+    unavailable: { label: "Confidence unavailable", color: "var(--text-faint)", bg: "var(--surface-2)" },
+  };
+  const s = styles[confidence.level];
+  return (
+    <span
+      title={confidence.score !== null ? `score ${confidence.score.toFixed(3)}` : undefined}
+      style={{ fontSize: 10, fontWeight: 700, color: s.color, background: s.bg, padding: "3px 8px", borderRadius: 20, border: "1px solid transparent" }}
+    >
+      {s.label}
+    </span>
+  );
+}
+
 function MessageRow({ msg }: { msg: Message }) {
   const isUser = msg.role === "user";
   const labelMap = new Map<string, string>((msg.sources ?? []).map(s => [s.chunkId, s.label]));
@@ -365,6 +388,11 @@ function MessageRow({ msg }: { msg: Message }) {
         >
           {isUser ? msg.text : <MarkdownContent text={msg.text} labelMap={labelMap} />}
         </div>
+        {!isUser && msg.confidence && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", paddingLeft: 4 }}>
+            <ConfidenceBadge confidence={msg.confidence} />
+          </div>
+        )}
         {msg.sources && msg.sources.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", paddingLeft: 4, marginTop: 6 }}>
             {msg.sources.map((src) => (

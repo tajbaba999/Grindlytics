@@ -63,12 +63,17 @@ export function reciprocalRankFusion(
   return fused;
 }
 
+export type HybridSearchOutput = {
+  results: HybridResult[];
+  topLogit: number | null;
+};
+
 export async function hybridSearch(
   userId: string,
   question: string,
   topK: number = 10,
   filter?: ChunkQueryFilter,
-): Promise<HybridResult[]> {
+): Promise<HybridSearchOutput> {
   const denseK = Math.max(topK * 2, 8);
   const sparseK = Math.max(topK * 2, 8);
 
