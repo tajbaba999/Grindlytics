@@ -177,9 +177,18 @@ export type SourceRef = {
   label: string;
 };
 
+export type GroundingResult = {
+  verified: number;
+  invalid: number;
+  total: number;
+  cleanAnswer: string;
+  fullyGrounded: boolean;
+};
+
 export type ChatResponse = {
   answer: string;
   sources: SourceRef[];
+  grounding?: GroundingResult;
 };
 
 // SSE progress event shape emitted by initial-sync / sync.

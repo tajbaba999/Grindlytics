@@ -165,12 +165,12 @@ export default function ChatPage() {
   );
 }
 
-function renderInline(text: string): React.ReactNode[] {
+function renderInline(text: string, labelMap: Map<string, string>): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   let remaining = text;
   let key = 0;
 
-  const pattern = /(\*\*(.+?)\*\*)|(\\\*(.+?)\\\*)|(\*(.+?)\*)|(`(.+?)`)/g;
+  const pattern = /\[SOURCE:\s*([^\]]+)\]|(\*\*(.+?)\*\*)|(\\\*(.+?)\\\*)|(\*(.+?)\*)|(`(.+?)`)/g;
   let lastIdx = 0;
   let match;
 
@@ -179,12 +179,38 @@ function renderInline(text: string): React.ReactNode[] {
       nodes.push(remaining.slice(lastIdx, match.index));
     }
     if (match[1]) {
-      nodes.push(<strong key={key++} style={{ fontWeight: 700 }}>{match[2]}</strong>);
-    } else if (match[3]) {
-      nodes.push(match[4]);
-    } else if (match[5]) {
-      nodes.push(<em key={key++} style={{ fontStyle: "italic" }}>{match[6]}</em>);
-    } else if (match[7]) {
+      const ids = match[1].split(",").map(s => s.trim()).filter(Boolean);
+      nodes.push(
+        <span key={key++} style={{ display: "inline-flex", gap: 4, flexWrap: "wrap", verticalAlign: "middle", margin: "0 2px" }}>
+          {ids.map(id => (
+            <span
+              key={id}
+              className="font-mono"
+              title={id}
+              style={{
+                fontSize: 9.5,
+                fontWeight: 600,
+                color: "var(--accent)",
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                padding: "1px 6px",
+                borderRadius: 8,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {labelMap.get(id) ?? id}
+            </span>
+          ))}
+        </span>,
+      );
+    } else if (match[2]) {
+      nodes.push(<strong key={key++} style={{ fontWeight: 700 }}>{match[3]}</strong>);
+    } else if (match[4]) {
+      nodes.push(match[5]);
+    } else if (match[6]) {
+      nodes.push(<em key={key++} style={{ fontStyle: "italic" }}>{match[7]}</em>);
+    } else if (match[8]) {
       nodes.push(
         <code
           key={key++}
@@ -196,7 +222,7 @@ function renderInline(text: string): React.ReactNode[] {
             background: "var(--bg-elevated, rgba(0,0,0,0.06))",
           }}
         >
-          {match[8]}
+          {match[9]}
         </code>,
       );
     }
@@ -208,7 +234,7 @@ function renderInline(text: string): React.ReactNode[] {
   return nodes;
 }
 
-function MarkdownContent({ text }: { text: string }) {
+function MarkdownContent({ text, labelMap }: { text: string; labelMap: Map<string, string> }) {
   const lines = text.split("\n");
   const blocks: React.ReactNode[] = [];
   let i = 0;
@@ -227,7 +253,7 @@ function MarkdownContent({ text }: { text: string }) {
       const s = sizes[level] || sizes[3];
       blocks.push(
         <div key={i} style={{ fontSize: s.size, fontWeight: s.weight, marginTop: i > 0 ? 10 : 0, marginBottom: 4, letterSpacing: "-0.01em" }}>
-          {renderInline(headingMatch[2])}
+          {renderInline(headingMatch[2], labelMap)}
         </div>,
       );
       i++;
@@ -274,7 +300,7 @@ function MarkdownContent({ text }: { text: string }) {
           {items.map((item, j) => (
             <div key={j} style={{ display: "flex", gap: 8, lineHeight: 1.6 }}>
               <span style={{ color: "var(--accent)", flexShrink: 0, marginTop: 1 }}>•</span>
-              <span>{renderInline(item)}</span>
+              <span>{renderInline(item, labelMap)}</span>
             </div>
           ))}
         </div>,
@@ -294,7 +320,7 @@ function MarkdownContent({ text }: { text: string }) {
           {items.map((item, j) => (
             <div key={j} style={{ display: "flex", gap: 8, lineHeight: 1.6 }}>
               <span style={{ color: "var(--accent)", fontWeight: 600, flexShrink: 0 }}>{item.num}.</span>
-              <span>{renderInline(item.text)}</span>
+              <span>{renderInline(item.text, labelMap)}</span>
             </div>
           ))}
         </div>,
@@ -310,7 +336,7 @@ function MarkdownContent({ text }: { text: string }) {
 
     blocks.push(
       <div key={i} style={{ lineHeight: 1.6 }}>
-        {renderInline(line)}
+        {renderInline(line, labelMap)}
       </div>,
     );
     i++;
@@ -321,6 +347,7 @@ function MarkdownContent({ text }: { text: string }) {
 
 function MessageRow({ msg }: { msg: Message }) {
   const isUser = msg.role === "user";
+  const labelMap = new Map<string, string>((msg.sources ?? []).map(s => [s.chunkId, s.label]));
   return (
     <div style={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: "78%" }}>
@@ -336,7 +363,7 @@ function MessageRow({ msg }: { msg: Message }) {
             borderRadius: isUser ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
           }}
         >
-          {isUser ? msg.text : <MarkdownContent text={msg.text} />}
+          {isUser ? msg.text : <MarkdownContent text={msg.text} labelMap={labelMap} />}
         </div>
         {msg.sources && msg.sources.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", paddingLeft: 4, marginTop: 6 }}>

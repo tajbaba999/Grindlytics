@@ -2,7 +2,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 import type { ChunkQueryFilter } from "./chroma.js";
 
+import { buildGroundingContext, verifyAgainstSources } from "./grounding.js";
 import { hybridSearch } from "./hybrid-search.js";
+import type { GroundingResult } from "./grounding.js";
 
 async function retry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   try {
@@ -36,6 +38,7 @@ export type SourceRef = {
 export type ChatResult = {
   answer: string;
   sources: SourceRef[];
+  grounding: GroundingResult;
 };
 
 export type ChatChunk = {
@@ -51,7 +54,7 @@ async function buildContext(
   filter?: ChunkQueryFilter,
 ): Promise<{ context: string; sources: SourceRef[] }> {
   const matches = await retry(() => hybridSearch(userId, question, 10, filter));
-  const context = matches.map(m => m.text).join("\n\n---\n\n");
+  const context = buildGroundingContext(matches);
   const sources = matches.map(m => ({ chunkId: m.id, label: m.label }));
   return { context, sources };
 }
@@ -67,6 +70,7 @@ function buildSystemPrompt(username: string, context: string): string {
     "- Provide actionable recommendations at the end.",
     "- If the data is insufficient to answer, say so — never invent numbers.",
     "- Do NOT truncate your answer. Give the full analysis even if it is long.",
+    "- CITATION REQUIREMENT: After every number or claim drawn from the data, append [SOURCE: chunk-id] using one of the source IDs marked in the data below. Every factual statement MUST be grounded in a source.",
     "",
     "Profile data:",
     context,
@@ -91,9 +95,13 @@ export async function chat(
     });
   });
 
+  const rawAnswer = result.response.text() ?? "No answer generated.";
+  const grounding = verifyAgainstSources(rawAnswer, sources);
+
   return {
-    answer: result.response.text() ?? "No answer generated.",
+    answer: grounding.cleanAnswer,
     sources,
+    grounding,
   };
 }
 
