@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+import { getOrBuildIndex, searchBm25 } from "./bm25.js";
 import { queryChunks, type ChunkQueryFilter } from "./chroma.js";
 import { embedChunks } from "./embeddings.js";
 
@@ -51,8 +52,21 @@ async function buildContext(
 ): Promise<{ context: string; sources: SourceRef[] }> {
   const [questionChunk] = await retry(() => embedChunks([{ id: "query", text: question, type: "summary", label: "Query", metadata: {} }]));
   const matches = await retry(() => queryChunks(userId, questionChunk.vector, 8, filter));
-  const context = matches.map(m => m.text).join("\n\n---\n\n");
-  const sources = matches.map(m => ({ chunkId: m.id, label: m.label }));
+
+  let final = matches;
+  if (final.length === 0) {
+    try {
+      const idx = await getOrBuildIndex(userId);
+      const sparse = searchBm25(idx, question, 8, filter);
+      final = sparse;
+    }
+    catch {
+      // BM25 index unavailable — keep dense results
+    }
+  }
+
+  const context = final.map(m => m.text).join("\n\n---\n\n");
+  const sources = final.map(m => ({ chunkId: m.id, label: m.label }));
   return { context, sources };
 }
 

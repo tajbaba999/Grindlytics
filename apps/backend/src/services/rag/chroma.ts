@@ -1,4 +1,4 @@
-import { ChromaClient, type Collection } from "chromadb";
+import { ChromaClient, IncludeEnum, type Collection } from "chromadb";
 
 import type { ChunkWithVector } from "./embeddings.js";
 
@@ -105,6 +105,31 @@ export async function queryChunks(
   const ids: string[] = result.ids[0] ?? [];
   const docs: (string | null)[] = result.documents[0] ?? [];
   const metadatas = (result.metadatas?.[0] ?? []) as Array<{ label?: string } | null>;
+
+  return ids.map((fullId, i) => ({
+    id: fullId.split("::")[1] ?? fullId,
+    text: docs[i] ?? "",
+    label: metadatas[i]?.label ?? "Source",
+  }));
+}
+
+export type StoredChunk = {
+  id: string;
+  text: string;
+  label: string;
+};
+
+export async function getAllChunks(userId: string): Promise<StoredChunk[]> {
+  const col = await getCollection();
+
+  const result = await col.get({
+    where: { userId },
+    include: [IncludeEnum.Documents, IncludeEnum.Metadatas],
+  });
+
+  const ids: string[] = result.ids ?? [];
+  const docs: (string | null)[] = result.documents ?? [];
+  const metadatas = (result.metadatas ?? []) as Array<{ label?: string } | null>;
 
   return ids.map((fullId, i) => ({
     id: fullId.split("::")[1] ?? fullId,

@@ -5,6 +5,7 @@ import { getChangedChunks, saveChunkHashes } from "./chunk-hasher.js";
 import { buildChunks } from "./document-builder.js";
 import { embedChunks } from "./embeddings.js";
 import { upsertChunks } from "./chroma.js";
+import { refreshIndex } from "./bm25.js";
 
 export type IngestProgressCallback = (stage: string, pct: number, msg: string) => void | Promise<void>;
 
@@ -52,6 +53,12 @@ export async function ingestRag(
     throw new Error(`ChromaDB upsert failed: ${msg}`);
   }
   await onProgress?.("chroma_done", 95, `Upserted ${withVectors.length} vectors to ChromaDB`);
+
+  await onProgress?.("bm25_refresh", 96, "Refreshing keyword index...");
+  refreshIndex(
+    userId,
+    allChunks.map(c => ({ id: c.id, text: c.text, label: c.label })),
+  );
 
   // Step 5: Save chunk hashes for next diff
   await onProgress?.("hash_saving", 96, "Saving chunk hashes for future diffs...");
