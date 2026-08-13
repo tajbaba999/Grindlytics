@@ -77,8 +77,8 @@ docker compose down
 ### 💻 Option 2: Local Development
 
 ```bash
-git clone https://github.com/tajbaba999/Grindlytics.git
-cd Grindlytics
+git clone https://github.com/tajbaba999/LeetRAG.git
+cd LeetRAG
 
 pnpm install
 pnpm run dev
